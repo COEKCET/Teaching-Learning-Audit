@@ -2,28 +2,28 @@
 <header class=top></header><main><div class=stats id=st></div>
 <div class=card><div class=tabs id=tb></div><div class=row><label style="flex:1;min-width:150px">Or pick a date<input type=date id=dt></label><button class="btn alt sm" id=cl>Clear</button></div></div>
 <div id=ls></div><div id=fm></div></main><script src=common.js></script><script>
-const u=boot('Faculty','🎓 My Audit Duties');let M,t0,base,DIR,CD,tab='today',prog=()=>{};const A={},P={};
+const u=boot('Faculty','🎓 My Audit Duties');let M,t0,base,DIR,CD,tab='today',prog=()=>{};const A={},P={},GP={};
 const TB=[['today','Today'],['up','Upcoming'],['past','Past'],['all','All']];
 const nowStr=()=>{const d=new Date(base+Date.now()-t0),p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;};
 async function pull(quiet){M=await api('myDuties',{},quiet);base=new Date(M.now.replace(' ','T')).getTime();t0=Date.now();}
 async function load(){await pull();DIR=(await api('directory')).rows;const td=nowStr().slice(0,10);
  if(!M.duties.some(x=>x.Date===td)&&M.duties.some(x=>x.Date>td))tab='up';draw();
- // auto-refresh so hall details unlock exactly at OpenTime (only when no form is open)
+ // auto-refresh so hall details unlock at OpenTime (only when no audit form is open)
  setInterval(async()=>{if($('#fm').innerHTML)return;try{await pull(true);draw();}catch(e){}},30000);}
 $('#dt').onchange=()=>draw();$('#cl').onclick=()=>{$('#dt').value='';draw();};
-const rep=d=>{const L=M.duties.filter(x=>x.Date===d),mem=[...new Set(L.flatMap(x=>x.members.split(', ')))].map(n=>({name:n,dept:(DIR.find(y=>y.FacultyName===n)||{}).Dept||''}));return auditDoc(M.reports.filter(r=>r.Date===d),M.questions,mem,'Audit date: '+d);};
+const rep=d=>{const L=M.duties.filter(x=>x.Date===d),mem=[...new Set(L.flatMap(x=>(x.members||'').split(', ')))].filter(Boolean).map(n=>({name:n,dept:(DIR.find(y=>y.FacultyName===n)||{}).Dept||''}));return auditDoc(M.reports.filter(r=>r.Date===d),M.questions,mem,'Audit date: '+d);};
 function draw(){$('#fm').innerHTML='';const td=nowStr().slice(0,10),pd=$('#dt').value,done=x=>M.reports.find(r=>r.DutyID===x.DutyID);
  const f={today:x=>x.Date===td,up:x=>x.Date>td,past:x=>x.Date<td,all:()=>1}[tab];
  const L=M.duties.filter(x=>pd?x.Date===pd:f(x)).sort((a,b)=>(a.Date+a.VisitTime).localeCompare(b.Date+b.VisitTime));
  const n=k=>M.duties.filter(k).length,dn=n(done);
  $('#st').innerHTML=[['📋',M.duties.length,'Total duties'],['📅',n(x=>x.Date===td),'Today'],['⏭️',n(x=>x.Date>td),'Upcoming'],['✅',dn,'Completed'],['⏳',M.duties.length-dn,'Pending']].map(s=>`<div class=stat><span>${s[0]}</span><b>${s[1]}</b>${s[2]}</div>`).join('');
  $('#tb').innerHTML=TB.map(t=>`<button class="btn alt ${!pd&&tab===t[0]?'on':''}" data-t=${t[0]}>${t[1]}</button>`).join('');
- const card=x=>{const op=nowStr()>=x.Date+' '+x.OpenTime&&!x.locked&&x.HallNo,d=done(x);
-  // BEFORE OpenTime: only duty allotment (date, visit time, open time). No hall / block / floor.
-  if(!op)return`<div class=q><div class=dc><div class=hn>🔒<b>Hall details locked</b></div><span class="badge b-lk">🔒 Opens ${x.OpenTime}</span></div>
-  <small>📅 ${x.Date}<br>⏰ Visit ${x.VisitTime} • Details open at ${x.OpenTime}</small></div>`;
+ const card=x=>{const op=!x.locked&&x.HallNo,d=done(x);
+  // BEFORE OpenTime: only date, visit time and open time. Hall / Block / Floor are hidden (server also removes them).
+  if(!op)return`<div class=q><div class=dc><div class=hn>🔒<b>Hall details locked</b></div><span class="badge b-lk">🔒 Opens ${esc(x.OpenTime)}</span></div>
+  <small>📅 ${esc(x.Date)}<br>⏰ Visit ${esc(x.VisitTime)} • Details open at ${esc(x.OpenTime)}</small></div>`;
   return`<div class=q><div class=dc><div class=hn>${x.Type==='Lab'?'🔬':'🏫'}<b>Hall ${esc(x.HallNo)}</b></div><span class="badge ${d?'b-ok':'b-wr'}">${d?'Completed':'Open'}</span></div>
-  <small>${esc(x.Type)} • Block ${esc(x.Block||'-')}, Floor ${esc(x.Floor||'-')}<br>⏰ Visit ${x.VisitTime} • Opens ${x.OpenTime}<br>👥 ${esc(x.members)}</small><br><button class="btn sm" style="margin-top:8px" data-id=${x.DutyID}>${d?'✎ Edit report':'▶ Start audit'}</button></div>`};
+  <small>${esc(x.Type)} • Block ${esc(x.Block||'-')}, Floor ${esc(x.Floor||'-')}<br>⏰ Visit ${esc(x.VisitTime)} • Opens ${esc(x.OpenTime)}<br>👥 ${esc(x.members)}</small><br><button class="btn sm" style="margin-top:8px" data-id=${x.DutyID}>${d?'✎ Edit report':'▶ Start audit'}</button></div>`};
  const G={};L.forEach(x=>(G[x.Date]=G[x.Date]||[]).push(x));
  $('#ls').innerHTML=Object.keys(G).map(d=>{const g=G[d];return`<div class=card><div class=dh><h3>📅 ${d} ${d===td?'<span class="badge b-wr">Today</span>':''}</h3><small>${g.filter(done).length}/${g.length} done</small>${g.every(done)?`<span class=row><button class="btn sm" data-w=${d}>📄 Word</button><button class="btn sm" data-p=${d}>📕 PDF</button></span>`:''}</div>${g.map(card).join('')}</div>`}).join('')
   ||`<div class="card empty">🗓️<br>No duties here<br><small>${M.duties.length?'Try another tab or date.':'No duty has been assigned to you yet. Please contact the admin.'}</small></div>`;
@@ -49,7 +49,8 @@ function form(du){CD=du;Object.keys(A).forEach(k=>delete A[k]);Object.keys(P).fo
  $$('.rate',$('#fm')).forEach(r=>$$('button',r).forEach(b=>b.onclick=()=>{if(r.classList.contains('mu'))b.classList.toggle('on');else{$$('button',r).forEach(x=>x.classList.remove('on'));b.classList.add('on');}A[r.dataset.q]=$$('button.on',r).map(x=>x.textContent).join('; ');prog();}));
  $$('[data-c]',$('#fm')).forEach(t=>t.oninput=()=>{A[t.dataset.c]=t.value;prog();});
  $$('[data-cam]',$('#fm')).forEach(b=>b.onclick=()=>cam(b.dataset.cam));
- $$('[data-up]',$('#fm')).forEach(b=>b.onclick=()=>$('#fi'+b.dataset.up).click());
+ // Upload: ask GPS first (on the tap), then open phone camera / gallery
+ $$('[data-up]',$('#fm')).forEach(b=>b.onclick=()=>{const q=b.dataset.up;GP[q]=geo();$('#fi'+q).click();});
  $$('[data-fp]',$('#fm')).forEach(f=>f.onchange=()=>photo(f));
  $('#cx').onclick=()=>{$('#fm').innerHTML='';};
  $('#sv').onclick=async()=>{if(!$('#hd').value||!$('#hf').value)return toast('Select handling dept & faculty');
@@ -57,6 +58,7 @@ function form(du){CD=du;Object.keys(A).forEach(k=>delete A[k]);Object.keys(P).fo
   await api('submitReport',{dutyId:du.DutyID,handlerDept:$('#hd').value,handlerName:$('#hf').value,answers:A,photos:Object.values(P).filter(x=>x&&x.data)});
   toast('✔ Report saved');await pull();draw();scrollTo({top:0,behavior:'smooth'});};
  $('#fm').scrollIntoView({behavior:'smooth'});}
+// ---------- Photo: place name, GPS, EXIF, stamp ----------
 async function place(lat,lng){
  const get=u=>fetch(u,{signal:AbortSignal.timeout(6000)}).then(r=>r.json());
  try{const j=await get(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=en&lat=${lat}&lon=${lng}`);if(j&&j.display_name)return j.display_name;}catch(e){}
@@ -64,10 +66,21 @@ async function place(lat,lng){
   const s=[j.locality,j.city,j.principalSubdivision,j.countryName].filter((v,i,a)=>v&&a.indexOf(v)===i).join(', ');if(s)return s;}catch(e){}
  return '';}
 const geo=()=>new Promise(r=>{if(!navigator.geolocation)return r(null);navigator.geolocation.getCurrentPosition(p=>r(p),()=>r(null),{enableHighAccuracy:true,timeout:15000,maximumAge:30000});});
-// Live camera; if it is blocked / unsupported / fails -> falls back to phone camera (file input, capture=environment)
-async function cam(q){const g=$('#g'+q),fb=()=>$('#fi'+q).click();
+// Reads GPS stored inside a JPEG (EXIF). Returns {lat,lng} or null.
+async function exifGps(file){try{const b=await file.slice(0,262144).arrayBuffer(),v=new DataView(b);if(v.getUint16(0)!==0xFFD8)return null;let o=2;
+ while(o<v.byteLength-4){const m=v.getUint16(o),l=v.getUint16(o+2);
+  if(m===0xFFE1&&v.getUint32(o+4)===0x45786966){const t=o+10,le=v.getUint16(t)===0x4949,g=p=>v.getUint16(p,le),G=p=>v.getUint32(p,le);
+   const ifd=p=>{const n=g(p),r={};for(let i=0;i<n;i++){const e=p+2+i*12;r[g(e)]=e;}return r;};
+   const i0=ifd(t+G(t+4));if(!i0[0x8825])return null;const gp=ifd(t+G(i0[0x8825]+8));if(!gp[2]||!gp[4])return null;
+   const rat=e=>{const p=t+G(e+8);let r=0;for(let i=0;i<3;i++)r+=(G(p+i*8)/(G(p+i*8+4)||1))/Math.pow(60,i);return r;};
+   const ref=e=>String.fromCharCode(v.getUint8(e+8));let lat=rat(gp[2]),lng=rat(gp[4]);
+   if(gp[1]&&ref(gp[1])==='S')lat=-lat;if(gp[3]&&ref(gp[3])==='W')lng=-lng;
+   return(lat||lng)?{lat,lng}:null;}
+  o+=2+l;}}catch(e){}return null;}
+// Live camera; if blocked / unsupported / fails -> phone camera (file input, capture=environment)
+async function cam(q){const g=$('#g'+q),fb=()=>{GP[q]=GP[q]||geo();$('#fi'+q).click();};
  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)||!window.isSecureContext){g.textContent='ℹ️ Live camera not available – opening phone camera...';fb();return;}
- const gp=geo();let st,er;
+ const gp=geo();GP[q]=gp;let st,er;
  for(const c of [{video:{facingMode:{ideal:'environment'}},audio:false},{video:true,audio:false}]){
   try{st=await navigator.mediaDevices.getUserMedia(c);break;}catch(e){er=e;if(e.name==='NotAllowedError'||e.name==='SecurityError')break;}}
  if(!st){const n=er&&er.name,why=n==='NotAllowedError'?'Camera permission denied. Allow Camera in browser settings, or use the button below.':n==='NotFoundError'?'No camera found.':n==='NotReadableError'?'Camera is in use by another app.':'Camera unavailable'+(n?' ('+n+')':'')+'.';
@@ -80,13 +93,17 @@ async function cam(q){const g=$('#g'+q),fb=()=>$('#fi'+q).click();
  const close=()=>{st.getTracks().forEach(t=>t.stop());o.remove();};
  o.querySelector('#cc').onclick=close;
  o.querySelector('#cu').onclick=()=>{close();fb();};
- o.querySelector('#cs').onclick=()=>{if(!v.videoWidth)return toast('Camera not ready, wait a moment');const w=v.videoWidth,h=v.videoHeight,c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(v,0,0,w,h);const when=nowStr();close();finish(q,c,w,h,when,gp);};}
-function photo(f){if(!f.files[0])return;const q=f.dataset.fp,im=new Image(),when=nowStr();im.onload=()=>{finish(q,im,im.width,im.height,when);f.value='';};im.onerror=()=>toast('Could not read the photo');im.src=URL.createObjectURL(f.files[0]);}
-async function finish(q,src,w,h,when,gp){const g=$('#g'+q);g.textContent='📍 Getting location...';const pos=await(gp||geo());
- let lat='NA',lng='NA',pn='';
- if(pos){lat=pos.coords.latitude.toFixed(5);lng=pos.coords.longitude.toFixed(5);g.textContent='📍 Finding place name...';pn=await place(lat,lng);}
- render(q,src,w,h,lat,lng,g,pn,when,!!pos);}
-function render(q,src,sw,sh,lat,lng,g,pn,when,hasGps){const k=Math.min(1,1000/sw),c=document.createElement('canvas');c.width=sw*k;c.height=sh*k;const x=c.getContext('2d');x.drawImage(src,0,0,c.width,c.height);
+ o.querySelector('#cs').onclick=()=>{if(!v.videoWidth)return toast('Camera not ready, wait a moment');const w=v.videoWidth,h=v.videoHeight,c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(v,0,0,w,h);const when=nowStr();delete GP[q];close();finish(q,c,w,h,when,gp,null,'Live camera');};}
+function photo(f){if(!f.files[0])return;const q=f.dataset.fp,file=f.files[0],im=new Image(),when=nowStr(),gp=GP[q];delete GP[q];
+ im.onload=()=>{finish(q,im,im.width,im.height,when,gp,file,'Uploaded photo');f.value='';};
+ im.onerror=()=>toast('Could not read the photo');im.src=URL.createObjectURL(file);}
+async function finish(q,src,w,h,when,gp,file,lbl){const g=$('#g'+q);g.textContent='📍 Getting location...';const pos=await(gp||geo());
+ let lat='NA',lng='NA',pn='',has=false,via='';
+ if(pos){lat=pos.coords.latitude.toFixed(5);lng=pos.coords.longitude.toFixed(5);has=true;via='Device GPS';}
+ else if(file){const e=await exifGps(file);if(e){lat=e.lat.toFixed(5);lng=e.lng.toFixed(5);has=true;via='Photo EXIF';}}
+ if(has){g.textContent='📍 Finding place name...';pn=await place(lat,lng);}
+ render(q,src,w,h,lat,lng,g,pn,when,has,lbl||'Live camera',via);}
+function render(q,src,sw,sh,lat,lng,g,pn,when,hasGps,lbl,via){const k=Math.min(1,1000/sw),c=document.createElement('canvas');c.width=sw*k;c.height=sh*k;const x=c.getContext('2d');x.drawImage(src,0,0,c.width,c.height);
  const fs=Math.max(14,Math.round(c.width/48)),lh=fs*1.35,pad=8;x.font=`bold ${fs}px "Times New Roman", Times, serif`;x.textBaseline='alphabetic';
  const wrap=(t,m)=>{const o=[];let l='';t.split(' ').forEach(w=>{const n=l?l+' '+w:w;if(x.measureText(n).width>m&&l){o.push(l);l=w;}else l=n;});if(l)o.push(l);return o;};
  const det=CD?`Details: ${CD.Type||'Hall'} - Hall ${CD.HallNo}, Block ${CD.Block||'-'}, Floor ${CD.Floor||'-'}`:'';
@@ -94,10 +111,11 @@ function render(q,src,sw,sh,lat,lng,g,pn,when,hasGps){const k=Math.min(1,1000/sw
   hasGps?`Location: Lat ${lat}, Long ${lng}`:'Location: Not available (GPS denied / off)',
   ...(det?wrap(det,c.width-2*pad):[]),
   ...(u?[`Auditor: ${u.name} (${u.id})`]:[]),
+  `Source: ${lbl}${via?' ('+via+')':''}`,
   `Date & Time: ${when}`],h=lh*L.length+pad,top=c.height-h;
  x.fillStyle='#000000b3';x.fillRect(0,top,c.width,h);x.fillStyle='#fff';L.forEach((t,i)=>x.fillText(t,pad,top+pad/2+lh*i+fs));
  const d=c.toDataURL('image/jpeg',.7);P[q]={qid:q,lat,lng,place:pn,data:d};
- g.textContent=hasGps?'✔ Geotagged: '+(pn||lat+', '+lng):'⚠ Photo added without GPS location (allow Location and retake for a geotag)';
+ g.textContent=hasGps?'✔ Geotagged ('+via+'): '+(pn||lat+', '+lng):'⚠ No GPS available – allow Location and retake for a geotag';
  const v=$('#i'+q);v.src=d;v.hidden=false;prog();}
 if(u)load();
 </script></body></html>
