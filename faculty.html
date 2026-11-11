@@ -1,0 +1,90 @@
+<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Faculty</title><link rel=stylesheet href=style.css></head><body>
+<header class=top></header><main><div class=stats id=st></div>
+<div class=card><div class=tabs id=tb></div><div class=row><label style="flex:1;min-width:150px">Or pick a date<input type=date id=dt></label><button class="btn alt sm" id=cl>Clear</button></div></div>
+<div id=ls></div><div id=fm></div></main><script src=common.js></script><script>
+const u=boot('Faculty','🎓 My Audit Duties');let M,t0,base,DIR,CD,tab='today',prog=()=>{};const A={},P={};
+const TB=[['today','Today'],['up','Upcoming'],['past','Past'],['all','All']];
+const nowStr=()=>{const d=new Date(base+Date.now()-t0),p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;};
+async function pull(){M=await api('myDuties');base=new Date(M.now.replace(' ','T')).getTime();t0=Date.now();}
+async function load(){await pull();DIR=(await api('directory')).rows;const td=nowStr().slice(0,10);
+ if(!M.duties.some(x=>x.Date===td)&&M.duties.some(x=>x.Date>td))tab='up';draw();}
+$('#dt').onchange=()=>draw();$('#cl').onclick=()=>{$('#dt').value='';draw();};
+const rep=d=>{const L=M.duties.filter(x=>x.Date===d),mem=[...new Set(L.flatMap(x=>x.members.split(', ')))].map(n=>({name:n,dept:(DIR.find(y=>y.FacultyName===n)||{}).Dept||''}));return auditDoc(M.reports.filter(r=>r.Date===d),M.questions,mem,'Audit date: '+d);};
+function draw(){$('#fm').innerHTML='';const td=nowStr().slice(0,10),pd=$('#dt').value,done=x=>M.reports.find(r=>r.DutyID===x.DutyID);
+ const f={today:x=>x.Date===td,up:x=>x.Date>td,past:x=>x.Date<td,all:()=>1}[tab];
+ const L=M.duties.filter(x=>pd?x.Date===pd:f(x)).sort((a,b)=>(a.Date+a.VisitTime).localeCompare(b.Date+b.VisitTime));
+ const n=k=>M.duties.filter(k).length,dn=n(done);
+ $('#st').innerHTML=[['📋',M.duties.length,'Total duties'],['📅',n(x=>x.Date===td),'Today'],['⏭️',n(x=>x.Date>td),'Upcoming'],['✅',dn,'Completed'],['⏳',M.duties.length-dn,'Pending']].map(s=>`<div class=stat><span>${s[0]}</span><b>${s[1]}</b>${s[2]}</div>`).join('');
+ $('#tb').innerHTML=TB.map(t=>`<button class="btn alt ${!pd&&tab===t[0]?'on':''}" data-t=${t[0]}>${t[1]}</button>`).join('');
+ const card=x=>{const op=nowStr()>=x.Date+' '+x.OpenTime,d=done(x);
+  if(!op)return`<div class=q><div class=dc><div class=hn>🔒<b>Details locked</b></div><span class="badge b-lk">🔒 ${x.OpenTime}</span></div>
+  <small>⏰ Visit ${x.VisitTime} • Opens ${x.OpenTime}</small></div>`;
+  return`<div class=q><div class=dc><div class=hn>${x.Type==='Lab'?'🔬':'🏫'}<b>Hall ${esc(x.HallNo)}</b></div><span class="badge ${d?'b-ok':'b-wr'}">${d?'Completed':'Open'}</span></div>
+  <small>${esc(x.Type)} • Block ${esc(x.Block||'-')}, Floor ${esc(x.Floor||'-')}<br>⏰ Visit ${x.VisitTime} • Opens ${x.OpenTime}<br>👥 ${esc(x.members)}</small><br><button class="btn sm" style="margin-top:8px" data-id=${x.DutyID}>${d?'✎ Edit report':'▶ Start audit'}</button></div>`};
+ const G={};L.forEach(x=>(G[x.Date]=G[x.Date]||[]).push(x));
+ $('#ls').innerHTML=Object.keys(G).map(d=>{const g=G[d];return`<div class=card><div class=dh><h3>📅 ${d} ${d===td?'<span class="badge b-wr">Today</span>':''}</h3><small>${g.filter(done).length}/${g.length} done</small>${g.every(done)?`<span class=row><button class="btn sm" data-w=${d}>📄 Word</button><button class="btn sm" data-p=${d}>📕 PDF</button></span>`:''}</div>${g.map(card).join('')}</div>`}).join('')
+  ||`<div class="card empty">🗓️<br>No duties here<br><small>${M.duties.length?'Try another tab or date.':'No duty has been assigned to you yet. Please contact the admin.'}</small></div>`;
+ $$('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;$('#dt').value='';draw();});
+ $$('[data-id]').forEach(b=>b.onclick=()=>form(M.duties.find(x=>x.DutyID===b.dataset.id)));
+ $$('[data-w],[data-p]').forEach(b=>b.onclick=()=>{const d=b.dataset.w||b.dataset.p;b.dataset.w?toWord('TLV_Report_'+d,rep(d)):toPDF(rep(d));});}
+function form(du){CD=du;Object.keys(A).forEach(k=>delete A[k]);Object.keys(P).forEach(k=>delete P[k]);
+ const old=M.reports.find(r=>r.DutyID===du.DutyID),ph=old?jp(old.Photos):{};if(old)Object.assign(A,jp(old.Answers));
+ const depts=[...new Set(DIR.map(x=>x.Dept))].filter(Boolean),cats=[...new Set(M.questions.map(q=>q.Category))];
+ const inp=q=>{const a=A[q.QID]||'',T=q.Type;
+  if(['YesNo','Rating','Choice','Multi'].includes(T)){const L=T==='YesNo'?['Yes','No']:T==='Rating'?[1,2,3,4,5]:jp(q.Options),sel=String(a).split('; ');
+   return`<div class="row rate ${T==='Multi'?'mu':''} ${T==='YesNo'?'yn':''} ${T==='Rating'?'rt':''}" data-q=${q.QID}>${L.map(v=>`<button class="btn alt sm ${sel.includes(String(v))?'on':''} ${T==='YesNo'?(v==='Yes'?'y':'n'):''}">${esc(v)}</button>`).join('')}</div>${T==='Rating'?'<div class=scale><span>1 · Poor</span><span>5 · Excellent</span></div>':''}${T==='Multi'?'<small>Select all that apply</small>':''}`;}
+  if(T==='Comment')return`<textarea data-c=${q.QID} rows=3 placeholder="Type your remarks here...">${esc(a)}</textarea>`;
+  return`<button type=button class="btn ph" data-cam=${q.QID}>📸 Capture GeoTag Photo</button><input type=file accept="image/*" capture=environment data-p=${q.QID} id=fi${q.QID} hidden><br><small id=g${q.QID} class=gs>${ph[q.QID]?'✔ Photo already saved (retake to replace)':''}</small><img id=i${q.QID} class=pv hidden>`;};
+ $('#fm').innerHTML=`<div class="card fcard"><div class=fhead><div><div class=ftag>${du.Type==='Lab'?'LABORATORY AUDIT':'CLASSROOM AUDIT'}</div><h3>${du.Type==='Lab'?'🔬':'🏫'} Hall ${esc(du.HallNo)}</h3></div><button class="btn alt sm" id=cx>✕ Close</button></div>
+ <div class=chips><span>📅 ${du.Date}</span><span>🏢 Block ${esc(du.Block||'-')}</span><span>🪜 Floor ${esc(du.Floor||'-')}</span><span>⏰ ${du.VisitTime}</span></div>
+ <div class=hdl><div class=ht>Handling Details</div><div class=grid><div><label>Handling Dept <b class=req>*</b></label><select id=hd><option value="">-- Select --</option>${depts.map(d=>`<option>${esc(d)}</option>`).join('')}</select></div><div><label>Handling Faculty <b class=req>*</b></label><select id=hf></select></div></div></div>
+ <div class=qs>${cats.map(c=>{const Q=M.questions.filter(q=>q.Category===c);return`<div class=sec><h4>${esc(c)}</h4><small>${Q.length} question${Q.length>1?'s':''}</small></div>`+Q.map(q=>`<div class="q qq"><div class=qt><span class=qn></span><span>${esc(q.Text)}</span></div><div class=qa>${inp(q)}</div></div>`).join('')}).join('')||'<p>No questions have been added yet.</p>'}</div></div>
+ <div class=sbar><div class=pgb><i id=pb></i></div><small id=pt></small><button class=btn id=sv>💾 Save Report</button></div>`;
+ const fillF=(d,v)=>{$('#hf').innerHTML=DIR.filter(x=>x.Dept===d).map(x=>`<option>${esc(x.FacultyName)}</option>`).join('');if(v)$('#hf').value=v;};
+ $('#hd').onchange=e=>fillF(e.target.value);if(old){$('#hd').value=old.HandlerDept;fillF(old.HandlerDept,old.HandlerName);}
+ prog=()=>{const t=M.questions.length||1,a=M.questions.filter(q=>A[q.QID]||P[q.QID]||ph[q.QID]).length;$('#pb').style.width=a/t*100+'%';$('#pt').textContent=a+'/'+M.questions.length;};prog();
+ $$('.rate',$('#fm')).forEach(r=>$$('button',r).forEach(b=>b.onclick=()=>{if(r.classList.contains('mu'))b.classList.toggle('on');else{$$('button',r).forEach(x=>x.classList.remove('on'));b.classList.add('on');}A[r.dataset.q]=$$('button.on',r).map(x=>x.textContent).join('; ');prog();}));
+ $$('[data-c]',$('#fm')).forEach(t=>t.oninput=()=>{A[t.dataset.c]=t.value;prog();});
+ $$('[data-cam]',$('#fm')).forEach(b=>b.onclick=()=>cam(b.dataset.cam));
+ $$('[data-p]',$('#fm')).forEach(f=>f.onchange=()=>photo(f));
+ $('#cx').onclick=()=>{$('#fm').innerHTML='';};
+ $('#sv').onclick=async()=>{if(!$('#hd').value||!$('#hf').value)return toast('Select handling dept & faculty');
+  const miss=M.questions.filter(q=>!(A[q.QID]||P[q.QID]||ph[q.QID])).length;if(miss&&!confirm(miss+' question(s) unanswered. Save anyway?'))return;
+  await api('submitReport',{dutyId:du.DutyID,handlerDept:$('#hd').value,handlerName:$('#hf').value,answers:A,photos:Object.values(P).filter(x=>x&&x.data)});
+  toast('✔ Report saved');await pull();draw();scrollTo({top:0,behavior:'smooth'});};
+ $('#fm').scrollIntoView({behavior:'smooth'});}
+async function place(lat,lng){
+ const get=u=>fetch(u,{signal:AbortSignal.timeout(6000)}).then(r=>r.json());
+ try{const j=await get(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=en&lat=${lat}&lon=${lng}`);if(j&&j.display_name)return j.display_name;}catch(e){}
+ try{const j=await get(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`);
+  const s=[j.locality,j.city,j.principalSubdivision,j.countryName].filter((v,i,a)=>v&&a.indexOf(v)===i).join(', ');if(s)return s;}catch(e){}
+ return '';}
+const geo=()=>new Promise(r=>navigator.geolocation.getCurrentPosition(p=>r(p),()=>r(null),{enableHighAccuracy:true,timeout:15000}));
+async function cam(q){const g=$('#g'+q);
+ if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){$('#fi'+q).click();return;}
+ const gp=geo();let st,er;
+ for(const c of [{video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false},{video:true,audio:false}]){
+  try{st=await navigator.mediaDevices.getUserMedia(c);break;}catch(e){er=e;if(e.name==='NotAllowedError'||e.name==='SecurityError')break;}}
+ if(!st){const n=er&&er.name,why=n==='NotAllowedError'?'Camera permission denied. Tap the 🔒 icon in the address bar → Permissions → allow Camera, then reload.':n==='NotFoundError'?'No camera found.':n==='NotReadableError'?'Camera is in use by another app.':'Camera unavailable'+(n?' ('+n+')':'')+'.';
+  g.innerHTML='❌ '+esc(why)+'<br><button type=button class="btn alt sm" id=nc'+q+'>📷 Use phone camera instead</button>';
+  $('#nc'+q).onclick=()=>$('#fi'+q).click();return;}
+ const o=document.createElement('div');o.style.cssText='position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column';
+ o.innerHTML='<video autoplay playsinline muted style="flex:1;min-height:0;width:100%;object-fit:contain"></video><div style="display:flex;justify-content:space-around;align-items:center;padding:16px;background:#000"><button type=button class="btn alt" id=cc>✕ Cancel</button><button type=button id=cs aria-label=Capture style="width:68px;height:68px;border-radius:50%;border:4px solid #fff;background:#e53935"></button><span style="width:80px"></span></div>';
+ document.body.appendChild(o);const v=o.querySelector('video');v.srcObject=st;
+ const close=()=>{st.getTracks().forEach(t=>t.stop());o.remove();};
+ o.querySelector('#cc').onclick=close;
+ o.querySelector('#cs').onclick=()=>{if(!v.videoWidth)return;const w=v.videoWidth,h=v.videoHeight,c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(v,0,0,w,h);const when=nowStr();close();finish(q,c,w,h,when,gp);};}
+function photo(f){const im=new Image(),when=nowStr();im.onload=()=>finish(f.dataset.p,im,im.width,im.height,when);im.src=URL.createObjectURL(f.files[0]);}
+async function finish(q,src,w,h,when,gp){const g=$('#g'+q);g.textContent='📍 Getting location...';const pos=await(gp||geo());
+ if(!pos){g.textContent='❌ Location denied – allow GPS for geotag';return;}
+ const lat=pos.coords.latitude.toFixed(5),lng=pos.coords.longitude.toFixed(5);g.textContent='📍 Finding place name...';const pn=await place(lat,lng);
+ render(q,src,w,h,lat,lng,g,pn,when);}
+function render(q,src,sw,sh,lat,lng,g,pn,when){const k=Math.min(1,1000/sw),c=document.createElement('canvas');c.width=sw*k;c.height=sh*k;const x=c.getContext('2d');x.drawImage(src,0,0,c.width,c.height);
+ const fs=Math.max(14,Math.round(c.width/48)),lh=fs*1.35,pad=8;x.font=`bold ${fs}px "Times New Roman", Times, serif`;x.textBaseline='alphabetic';
+ const wrap=(t,m)=>{const o=[];let l='';t.split(' ').forEach(w=>{const n=l?l+' '+w:w;if(x.measureText(n).width>m&&l){o.push(l);l=w;}else l=n;});if(l)o.push(l);return o;};
+ const det=CD?`Details: ${CD.Type||'Hall'} - Hall ${CD.HallNo}, Block ${CD.Block||'-'}, Floor ${CD.Floor||'-'}`:'';
+ const L=[...(pn?wrap('Place: '+pn,c.width-2*pad).slice(0,3):[]),`Location: Lat ${lat}, Long ${lng}`,...(det?wrap(det,c.width-2*pad):[]),`Date & Time: ${when}`],h=lh*L.length+pad,top=c.height-h;
+ x.fillStyle='#000000b3';x.fillRect(0,top,c.width,h);x.fillStyle='#fff';L.forEach((t,i)=>x.fillText(t,pad,top+pad/2+lh*i+fs));
+ const d=c.toDataURL('image/jpeg',.7);P[q]={qid:q,lat,lng,place:pn,data:d};g.textContent='✔ Geotagged: '+(pn||lat+', '+lng);const v=$('#i'+q);v.src=d;v.hidden=false;prog();}
+if(u)load();
+</script></body></html>

@@ -1,0 +1,19 @@
+<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Admin</title><link rel=stylesheet href=style.css></head><body>
+<header class=top></header><main><div class="tabs nav" id=tb></div><div id=pn></div></main><script src=common.js></script><script>
+if(boot('Admin','⚙️ Admin – TLV Portal')){
+const depts=()=>[...new Set(D.Users.map(u=>u.Dept))].filter(Boolean);
+const IC={Users:'👥',Halls:'🏫','Squad Duty':'🛡️',Questionnaire:'❓',Reports:'📊'};
+const T={
+ 'Users':()=>crud($('#pn'),{sheet:'Users',title:'Users',cols:['FacultyID','MailID','FacultyName','Dept','Role'],tpl:['FacultyID','MailID','FacultyName','Password','Dept','Role'],
+  fields:[{k:'FacultyID',label:'Faculty ID',req:1},{k:'MailID',label:'Mail ID'},{k:'FacultyName',label:'Name',req:1},{k:'Dept',label:'Dept'},{k:'Password',label:'Set/Reset Password'},{k:'Role',label:'Role',type:'select',opts:()=>['Faculty','Admin','Principal']}]}),
+ 'Halls':()=>crud($('#pn'),{sheet:'Halls',title:'Hall Details',fields:[{k:'HallNo',label:'Hall No',req:1},{k:'Block',label:'Block'},{k:'Floor',label:'Floor'}]}),
+ 'Squad Duty':async()=>{await Promise.all([ld('Users'),ld('Halls')]);crud($('#pn'),{sheet:'Duties',title:'Squad Member Duty Allotment',cols:['Date','HallNo','Type','FacultyID','FacultyName','Dept','VisitTime','OpenTime'],tpl:['Date','HallNo','Type','FacultyID','VisitTime','OpenTime'],
+  fields:[{k:'Date',label:'Date',type:'date',req:1},{k:'HallNo',label:'Halls (select one by one)',type:'multi',opts:()=>D.Halls.map(h=>h.HallNo)},{k:'Type',label:'Lab / Class',type:'select',opts:()=>['Class','Lab']},
+  {k:'Dept',label:'Filter faculty by Dept',type:'select',opts:depts},{k:'FacultyID',label:'Squad Members (select one by one)',type:'multi',opts:()=>D.Users.map(u=>[u.FacultyID,u.FacultyName+' ('+u.FacultyID+')'])},
+  {k:'VisitTime',label:'Visit Time',type:'time',req:1},{k:'OpenTime',label:'Open-to-view Time',type:'time',req:1}]});},
+ 'Questionnaire':()=>qbuilder($('#pn')),
+ 'Reports':()=>analytics($('#pn'))};
+$('#tb').innerHTML=Object.keys(T).map(k=>`<button class="btn alt" data-k="${k}"><i>${IC[k]}</i><span>${k}</span></button>`).join('');
+$$('#tb button').forEach(b=>b.onclick=()=>{$$('#tb button').forEach(x=>x.classList.remove('on'));b.classList.add('on');$('#pn').innerHTML='';T[b.dataset.k]();});
+$('#tb button').click();}
+</script></body></html>
