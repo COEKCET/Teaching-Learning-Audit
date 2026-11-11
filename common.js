@@ -1,4 +1,4 @@
-const GS_URL="https://script.google.com/macros/s/AKfycbwp3eETlpr2RMpy0gCam207NPdPql6b7uRcQyXHGdMXM8Wb9qJB7Brp4i6EFBs329Vk/exec";
+const GS_URL="https://script.google.com/macros/s/AKfycbxoR4DVs5qQJVrGRh-MNhy9pgzI8IUhwWT86Ptglg9BhOtX7ew39fWmWpHfQ40_s61Y/exec";
 const $$=(s,e=document)=>[...e.querySelectorAll(s)],jp=s=>{try{return JSON.parse(s)||[]}catch{return[]}};
 const $=(s,e=document)=>e.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 document.documentElement.dataset.theme=localStorage.th||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
