@@ -73,22 +73,27 @@ const geo=()=>new Promise(r=>{
   {enableHighAccuracy:true,timeout:10000,maximumAge:0});});
 function camFail(q,why){const g=$('#g'+q);g.innerHTML='❌ '+esc(why)+'<br><button type=button class="btn alt sm" id=nc'+q+'>📷 Use phone camera instead</button>';$('#nc'+q).onclick=()=>$('#fi'+q).click();}
 async function cam(q){const g=$('#g'+q);
+ try{
  if(!window.isSecureContext)return camFail(q,'Camera & GPS need a secure page. Open this site with https:// (current: '+location.protocol+'//'+location.host+').');
  if(/FBAN|FBAV|Instagram|WhatsApp|Telegram|Line\/|; wv\)/i.test(navigator.userAgent))return camFail(q,'This in-app browser blocks the camera. Open the link in Chrome / Safari.');
- try{if(self!==top)return camFail(q,'The page is opened inside a frame, so the camera is blocked. Open the site directly in the browser.');}catch(e){return camFail(q,'The page is opened inside a frame, so the camera is blocked. Open the site directly in the browser.');}
+ if(self!==top)return camFail(q,'The page is opened inside a frame, so the camera is blocked. Open the site directly in the browser.');
  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){$('#fi'+q).click();return;}
- const gp=geo();let st,er;
- for(const c of [{video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false},{video:true,audio:false}]){
-  try{st=await navigator.mediaDevices.getUserMedia(c);break;}catch(e){er=e;if(e.name==='NotAllowedError'||e.name==='SecurityError')break;}}
- if(!st){const n=er&&er.name,why=n==='NotAllowedError'?'Camera permission denied. Tap the 🔒 icon in the address bar → Permissions → allow Camera, then reload.':n==='NotFoundError'?'No camera found.':n==='NotReadableError'?'Camera is in use by another app.':'Camera unavailable'+(n?' ('+n+')':'')+'.';
-  g.innerHTML='❌ '+esc(why)+'<br><button type=button class="btn alt sm" id=nc'+q+'>📷 Use phone camera instead</button>';
-  $('#nc'+q).onclick=()=>$('#fi'+q).click();return;}
- const o=document.createElement('div');o.style.cssText='position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column';
- o.innerHTML='<video autoplay playsinline muted style="flex:1;min-height:0;width:100%;object-fit:contain"></video><div style="display:flex;justify-content:space-around;align-items:center;padding:16px;background:#000"><button type=button class="btn alt" id=cc>✕ Cancel</button><button type=button id=cs aria-label=Capture style="width:68px;height:68px;border-radius:50%;border:4px solid #fff;background:#e53935"></button><span style="width:80px"></span></div>';
- document.body.appendChild(o);const v=o.querySelector('video');v.srcObject=st;
+ g.textContent='📷 Opening camera... tap Allow if asked';
+ // camera first, GPS afterwards: two permission prompts at once can silently block the camera
+ const ask=c=>Promise.race([navigator.mediaDevices.getUserMedia(c),new Promise((_,j)=>setTimeout(()=>j({name:'Timeout'}),12000))]);
+ let st,er;
+ for(const c of [{video:{facingMode:{ideal:'environment'}},audio:false},{video:true,audio:false}]){
+  try{st=await ask(c);break;}catch(e){er=e;if(['NotAllowedError','SecurityError','Timeout'].includes(e.name))break;}}
+ if(!st){const n=er&&er.name,why=n==='NotAllowedError'?'Camera permission denied. Tap the 🔒 icon in the address bar → Permissions → allow Camera, then reload.':n==='Timeout'?'Camera did not respond. Allow the camera permission, or use the phone camera below.':n==='NotFoundError'?'No camera found.':n==='NotReadableError'?'Camera is in use by another app.':'Camera unavailable'+(n?' ('+n+')':'')+'.';
+  return camFail(q,why);}
+ g.textContent='';const gp=geo();
+ const o=document.createElement('div');o.style.cssText='position:fixed;inset:0;background:#000;z-index:99999;display:flex;flex-direction:column';
+ o.innerHTML='<video autoplay playsinline muted style="flex:1;min-height:0;width:100%;object-fit:contain;background:#000"></video><div style="display:flex;justify-content:space-around;align-items:center;padding:16px;background:#000"><button type=button class="btn alt" id=cc>✕ Cancel</button><button type=button id=cs aria-label=Capture style="width:68px;height:68px;border-radius:50%;border:4px solid #fff;background:#e53935"></button><span style="width:80px"></span></div>';
+ document.body.appendChild(o);const v=o.querySelector('video');v.setAttribute('playsinline','');v.muted=true;v.srcObject=st;v.play().catch(()=>{});
  const close=()=>{st.getTracks().forEach(t=>t.stop());o.remove();};
  o.querySelector('#cc').onclick=close;
- o.querySelector('#cs').onclick=()=>{if(!v.videoWidth)return;const w=v.videoWidth,h=v.videoHeight,c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(v,0,0,w,h);const when=nowStr();close();finish(q,c,w,h,when,gp);};}
+ o.querySelector('#cs').onclick=()=>{if(!v.videoWidth)return toast('Camera is still starting, wait a second');const w=v.videoWidth,h=v.videoHeight,c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(v,0,0,w,h);const when=nowStr();close();finish(q,c,w,h,when,gp);};
+ }catch(e){camFail(q,'Camera error: '+(e&&e.message||e));}}
 function photo(f){const im=new Image(),when=nowStr();im.onload=()=>finish(f.dataset.p,im,im.width,im.height,when);im.src=URL.createObjectURL(f.files[0]);}
 async function finish(q,src,w,h,when,gp){const g=$('#g'+q);g.textContent='📍 Getting location...';
  let pos=await(gp||geo());if(!pos)pos=await geo(); // one more try if the first attempt failed
