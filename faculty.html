@@ -1,26 +1,27 @@
-<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Faculty</title><link rel=stylesheet href=style.css></head><body>
+<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Faculty</title><link rel=stylesheet href=style.css?v=3></head><body>
 <header class=top></header><main><div class=stats id=st></div>
 <div class=card><div class=tabs id=tb></div><div class=row><label style="flex:1;min-width:150px">Or pick a date<input type=date id=dt></label><button class="btn alt sm" id=cl>Clear</button></div></div>
-<div id=ls></div><div id=fm></div></main><script src=common.js></script><script>
+<div id=ls></div><div id=fm></div></main><script src=common.js?v=3></script><script>
 const u=boot('Faculty','🎓 My Audit Duties');let M,t0,base,DIR,CD,tab='today',prog=()=>{};const A={},P={};
 const TB=[['today','Today'],['up','Upcoming'],['past','Past'],['all','All']];
 const nowStr=()=>{const d=new Date(base+Date.now()-t0),p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;};
+const isLocked=x=>x.locked!==undefined?x.locked:(!!x.OpenTime&&nowStr()<x.Date+' '+x.OpenTime); // server flag first; client check if backend is an old version
 async function pull(){M=await api('myDuties',{},true);base=new Date(M.now.replace(' ','T')).getTime();t0=Date.now();}
-async function load(){await pull();DIR=(await api('directory')).rows;const td=nowStr().slice(0,10);
+async function load(){await pull();if(M.duties.length&&M.duties.every(x=>x.locked===undefined))toast('Backend is an OLD version - redeploy Code.gs: Deploy > Manage deployments > Edit > New version');DIR=(await api('directory')).rows;const td=nowStr().slice(0,10);
  if(!M.duties.some(x=>x.Date===td)&&M.duties.some(x=>x.Date>td))tab='up';draw();}
 // auto-unlock: every 10s check whether a locked duty has reached its OpenTime, then refresh from server
 let chk=0;
 setInterval(async()=>{if(!M||chk)return;const n=nowStr();
- if(M.duties.some(x=>x.locked&&n>=x.Date+' '+x.OpenTime)){chk=1;try{await pull();draw(!!$('#fm').innerHTML);}catch(e){}finally{chk=0;}}},10000);
+ if(M.duties.some(x=>isLocked(x)&&n>=x.Date+' '+x.OpenTime)){chk=1;try{await pull();draw(!!$('#fm').innerHTML);}catch(e){}finally{chk=0;}}},10000);
 $('#dt').onchange=()=>draw();$('#cl').onclick=()=>{$('#dt').value='';draw();};
-const rep=d=>{const L=M.duties.filter(x=>x.Date===d&&!x.locked),mem=[...new Set(L.flatMap(x=>x.members.split(', ')).filter(Boolean))].map(n=>({name:n,dept:(DIR.find(y=>y.FacultyName===n)||{}).Dept||''}));return auditDoc(M.reports.filter(r=>r.Date===d),M.questions,mem,'Audit date: '+d);};
+const rep=d=>{const L=M.duties.filter(x=>x.Date===d&&!isLocked(x)),mem=[...new Set(L.flatMap(x=>x.members.split(', ')).filter(Boolean))].map(n=>({name:n,dept:(DIR.find(y=>y.FacultyName===n)||{}).Dept||''}));return auditDoc(M.reports.filter(r=>r.Date===d),M.questions,mem,'Audit date: '+d);};
 function draw(keep){if(!keep)$('#fm').innerHTML='';const td=nowStr().slice(0,10),pd=$('#dt').value,done=x=>M.reports.find(r=>r.DutyID===x.DutyID);
  const f={today:x=>x.Date===td,up:x=>x.Date>td,past:x=>x.Date<td,all:()=>1}[tab];
  const L=M.duties.filter(x=>pd?x.Date===pd:f(x)).sort((a,b)=>(a.Date+a.VisitTime).localeCompare(b.Date+b.VisitTime));
  const n=k=>M.duties.filter(k).length,dn=n(done);
  $('#st').innerHTML=[['📋',M.duties.length,'Total duties'],['📅',n(x=>x.Date===td),'Today'],['⏭️',n(x=>x.Date>td),'Upcoming'],['✅',dn,'Completed'],['⏳',M.duties.length-dn,'Pending']].map(s=>`<div class=stat><span>${s[0]}</span><b>${s[1]}</b>${s[2]}</div>`).join('');
  $('#tb').innerHTML=TB.map(t=>`<button class="btn alt ${!pd&&tab===t[0]?'on':''}" data-t=${t[0]}>${t[1]}</button>`).join('');
- const card=x=>{const op=!x.locked,d=done(x);
+ const card=x=>{const op=!isLocked(x),d=done(x);
   if(!op)return`<div class=q><div class=dc><div class=hn>🔒<b>Details locked</b></div><span class="badge b-lk">🔒 ${x.OpenTime}</span></div>
   <small>⏰ Visit ${x.VisitTime} • Opens ${x.OpenTime}</small></div>`;
   return`<div class=q><div class=dc><div class=hn>${x.Type==='Lab'?'🔬':'🏫'}<b>Hall ${esc(x.HallNo)}</b></div><span class="badge ${d?'b-ok':'b-wr'}">${d?'Completed':'Open'}</span></div>
@@ -70,7 +71,11 @@ const geo=()=>new Promise(r=>{
  navigator.geolocation.getCurrentPosition(o,
   ()=>navigator.geolocation.getCurrentPosition(o,()=>r(null),{enableHighAccuracy:false,timeout:15000,maximumAge:60000}),
   {enableHighAccuracy:true,timeout:10000,maximumAge:0});});
+function camFail(q,why){const g=$('#g'+q);g.innerHTML='❌ '+esc(why)+'<br><button type=button class="btn alt sm" id=nc'+q+'>📷 Use phone camera instead</button>';$('#nc'+q).onclick=()=>$('#fi'+q).click();}
 async function cam(q){const g=$('#g'+q);
+ if(!window.isSecureContext)return camFail(q,'Camera & GPS need a secure page. Open this site with https:// (current: '+location.protocol+'//'+location.host+').');
+ if(/FBAN|FBAV|Instagram|WhatsApp|Telegram|Line\/|; wv\)/i.test(navigator.userAgent))return camFail(q,'This in-app browser blocks the camera. Open the link in Chrome / Safari.');
+ try{if(self!==top)return camFail(q,'The page is opened inside a frame, so the camera is blocked. Open the site directly in the browser.');}catch(e){return camFail(q,'The page is opened inside a frame, so the camera is blocked. Open the site directly in the browser.');}
  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){$('#fi'+q).click();return;}
  const gp=geo();let st,er;
  for(const c of [{video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false},{video:true,audio:false}]){
