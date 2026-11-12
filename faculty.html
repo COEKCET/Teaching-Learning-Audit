@@ -5,18 +5,22 @@
 const u=boot('Faculty','🎓 My Audit Duties');let M,t0,base,DIR,CD,tab='today',prog=()=>{};const A={},P={};
 const TB=[['today','Today'],['up','Upcoming'],['past','Past'],['all','All']];
 const nowStr=()=>{const d=new Date(base+Date.now()-t0),p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;};
-async function pull(){M=await api('myDuties');base=new Date(M.now.replace(' ','T')).getTime();t0=Date.now();}
+async function pull(){M=await api('myDuties',{},true);base=new Date(M.now.replace(' ','T')).getTime();t0=Date.now();}
 async function load(){await pull();DIR=(await api('directory')).rows;const td=nowStr().slice(0,10);
  if(!M.duties.some(x=>x.Date===td)&&M.duties.some(x=>x.Date>td))tab='up';draw();}
+// auto-unlock: every 10s check whether a locked duty has reached its OpenTime, then refresh from server
+let chk=0;
+setInterval(async()=>{if(!M||chk)return;const n=nowStr();
+ if(M.duties.some(x=>x.locked&&n>=x.Date+' '+x.OpenTime)){chk=1;try{await pull();draw(!!$('#fm').innerHTML);}catch(e){}finally{chk=0;}}},10000);
 $('#dt').onchange=()=>draw();$('#cl').onclick=()=>{$('#dt').value='';draw();};
-const rep=d=>{const L=M.duties.filter(x=>x.Date===d),mem=[...new Set(L.flatMap(x=>x.members.split(', ')))].map(n=>({name:n,dept:(DIR.find(y=>y.FacultyName===n)||{}).Dept||''}));return auditDoc(M.reports.filter(r=>r.Date===d),M.questions,mem,'Audit date: '+d);};
-function draw(){$('#fm').innerHTML='';const td=nowStr().slice(0,10),pd=$('#dt').value,done=x=>M.reports.find(r=>r.DutyID===x.DutyID);
+const rep=d=>{const L=M.duties.filter(x=>x.Date===d&&!x.locked),mem=[...new Set(L.flatMap(x=>x.members.split(', ')).filter(Boolean))].map(n=>({name:n,dept:(DIR.find(y=>y.FacultyName===n)||{}).Dept||''}));return auditDoc(M.reports.filter(r=>r.Date===d),M.questions,mem,'Audit date: '+d);};
+function draw(keep){if(!keep)$('#fm').innerHTML='';const td=nowStr().slice(0,10),pd=$('#dt').value,done=x=>M.reports.find(r=>r.DutyID===x.DutyID);
  const f={today:x=>x.Date===td,up:x=>x.Date>td,past:x=>x.Date<td,all:()=>1}[tab];
  const L=M.duties.filter(x=>pd?x.Date===pd:f(x)).sort((a,b)=>(a.Date+a.VisitTime).localeCompare(b.Date+b.VisitTime));
  const n=k=>M.duties.filter(k).length,dn=n(done);
  $('#st').innerHTML=[['📋',M.duties.length,'Total duties'],['📅',n(x=>x.Date===td),'Today'],['⏭️',n(x=>x.Date>td),'Upcoming'],['✅',dn,'Completed'],['⏳',M.duties.length-dn,'Pending']].map(s=>`<div class=stat><span>${s[0]}</span><b>${s[1]}</b>${s[2]}</div>`).join('');
  $('#tb').innerHTML=TB.map(t=>`<button class="btn alt ${!pd&&tab===t[0]?'on':''}" data-t=${t[0]}>${t[1]}</button>`).join('');
- const card=x=>{const op=nowStr()>=x.Date+' '+x.OpenTime,d=done(x);
+ const card=x=>{const op=!x.locked,d=done(x);
   if(!op)return`<div class=q><div class=dc><div class=hn>🔒<b>Details locked</b></div><span class="badge b-lk">🔒 ${x.OpenTime}</span></div>
   <small>⏰ Visit ${x.VisitTime} • Opens ${x.OpenTime}</small></div>`;
   return`<div class=q><div class=dc><div class=hn>${x.Type==='Lab'?'🔬':'🏫'}<b>Hall ${esc(x.HallNo)}</b></div><span class="badge ${d?'b-ok':'b-wr'}">${d?'Completed':'Open'}</span></div>
@@ -24,9 +28,9 @@ function draw(){$('#fm').innerHTML='';const td=nowStr().slice(0,10),pd=$('#dt').
  const G={};L.forEach(x=>(G[x.Date]=G[x.Date]||[]).push(x));
  $('#ls').innerHTML=Object.keys(G).map(d=>{const g=G[d];return`<div class=card><div class=dh><h3>📅 ${d} ${d===td?'<span class="badge b-wr">Today</span>':''}</h3><small>${g.filter(done).length}/${g.length} done</small>${g.every(done)?`<span class=row><button class="btn sm" data-w=${d}>📄 Word</button><button class="btn sm" data-p=${d}>📕 PDF</button></span>`:''}</div>${g.map(card).join('')}</div>`}).join('')
   ||`<div class="card empty">🗓️<br>No duties here<br><small>${M.duties.length?'Try another tab or date.':'No duty has been assigned to you yet. Please contact the admin.'}</small></div>`;
- $$('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;$('#dt').value='';draw();});
- $$('[data-id]').forEach(b=>b.onclick=()=>form(M.duties.find(x=>x.DutyID===b.dataset.id)));
- $$('[data-w],[data-p]').forEach(b=>b.onclick=()=>{const d=b.dataset.w||b.dataset.p;b.dataset.w?toWord('TLV_Report_'+d,rep(d)):toPDF(rep(d));});}
+ $$('[data-t]',$('#tb')).forEach(b=>b.onclick=()=>{tab=b.dataset.t;$('#dt').value='';draw();});
+ $$('[data-id]',$('#ls')).forEach(b=>b.onclick=()=>form(M.duties.find(x=>x.DutyID===b.dataset.id)));
+ $$('[data-w],[data-p]',$('#ls')).forEach(b=>{b.onclick=()=>{const d=b.dataset.w||b.dataset.p;b.dataset.w?toWord('TLV_Report_'+d,rep(d)):toPDF(rep(d));};});}
 function form(du){CD=du;Object.keys(A).forEach(k=>delete A[k]);Object.keys(P).forEach(k=>delete P[k]);
  const old=M.reports.find(r=>r.DutyID===du.DutyID),ph=old?jp(old.Photos):{};if(old)Object.assign(A,jp(old.Answers));
  const depts=[...new Set(DIR.map(x=>x.Dept))].filter(Boolean),cats=[...new Set(M.questions.map(q=>q.Category))];
@@ -59,7 +63,13 @@ async function place(lat,lng){
  try{const j=await get(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`);
   const s=[j.locality,j.city,j.principalSubdivision,j.countryName].filter((v,i,a)=>v&&a.indexOf(v)===i).join(', ');if(s)return s;}catch(e){}
  return '';}
-const geo=()=>new Promise(r=>navigator.geolocation.getCurrentPosition(p=>r(p),()=>r(null),{enableHighAccuracy:true,timeout:15000}));
+// GPS first (10s); if it fails, fall back to network location (Wi-Fi/cell), which works indoors
+const geo=()=>new Promise(r=>{
+ if(!navigator.geolocation)return r(null);
+ const o=p=>r(p);
+ navigator.geolocation.getCurrentPosition(o,
+  ()=>navigator.geolocation.getCurrentPosition(o,()=>r(null),{enableHighAccuracy:false,timeout:15000,maximumAge:60000}),
+  {enableHighAccuracy:true,timeout:10000,maximumAge:0});});
 async function cam(q){const g=$('#g'+q);
  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){$('#fi'+q).click();return;}
  const gp=geo();let st,er;
@@ -75,8 +85,9 @@ async function cam(q){const g=$('#g'+q);
  o.querySelector('#cc').onclick=close;
  o.querySelector('#cs').onclick=()=>{if(!v.videoWidth)return;const w=v.videoWidth,h=v.videoHeight,c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(v,0,0,w,h);const when=nowStr();close();finish(q,c,w,h,when,gp);};}
 function photo(f){const im=new Image(),when=nowStr();im.onload=()=>finish(f.dataset.p,im,im.width,im.height,when);im.src=URL.createObjectURL(f.files[0]);}
-async function finish(q,src,w,h,when,gp){const g=$('#g'+q);g.textContent='📍 Getting location...';const pos=await(gp||geo());
- if(!pos){g.textContent='❌ Location denied – allow GPS for geotag';return;}
+async function finish(q,src,w,h,when,gp){const g=$('#g'+q);g.textContent='📍 Getting location...';
+ let pos=await(gp||geo());if(!pos)pos=await geo(); // one more try if the first attempt failed
+ if(!pos){g.innerHTML='❌ Location not available. Turn on GPS/Location, allow it for this site (🔒 in the address bar), then capture again.';return;}
  const lat=pos.coords.latitude.toFixed(5),lng=pos.coords.longitude.toFixed(5);g.textContent='📍 Finding place name...';const pn=await place(lat,lng);
  render(q,src,w,h,lat,lng,g,pn,when);}
 function render(q,src,sw,sh,lat,lng,g,pn,when){const k=Math.min(1,1000/sw),c=document.createElement('canvas');c.width=sw*k;c.height=sh*k;const x=c.getContext('2d');x.drawImage(src,0,0,c.width,c.height);
