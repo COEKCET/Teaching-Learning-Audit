@@ -52,20 +52,22 @@ async function crud(el,c){
  $('input[type=file]',el).onchange=async e=>{const t=await e.target.files[0].text();save(csvParse(t));e.target.value='';};
  draw();}
 // ---------- Report documents ----------
+// Logo (Logo.jpg in the same folder) at top center: 10 cm wide x 2 cm high
 const COLLEGE='<div style="text-align:center;border-bottom:3px double #000;padding-bottom:8px;margin-bottom:10px"><img src="'+new URL('Logo.jpg',location.href).href+'" style="width:10cm;height:2cm;display:block;margin:0 auto"><div style="font-size:14pt;font-weight:bold;margin-top:8px;text-decoration:underline">Teaching Learning Process Audit Visit Report</div></div>';
+function auditDoc(reps,qs,members,title){
  const K='background:#f2f2f2;width:18%;font-weight:bold',nm=m=>m.FacultyName||m.name,dp=m=>m.Dept||m.dept||'';
  const rows=[];for(let i=0;i<members.length;i+=3)rows.push(members.slice(i,i+3));
  const sig=rows.map(r=>{const al=r.length===1?['center']:r.length===2?['left','right']:['left','center','right'];
   return`<tr style="page-break-inside:avoid">${r.map((m,i)=>`<td style="width:${Math.floor(100/r.length)}%;text-align:${al[i]};border:0;padding:14px 12px 0">__________________<br><b>${esc(nm(m))}</b><br>Audit Member</td>`).join('')}</tr>`;}).join('');
  // one section per Date + Hall; every auditor of that hall gets his/her own response column
  const G=[],gm={};reps.forEach(r=>{const k=r.Date+'|'+r.HallNo;if(!gm[k]){gm[k]={Date:r.Date,HallNo:r.HallNo,Type:r.Type,R:[]};G.push(gm[k]);}gm[k].R.push(r);});
- const sec=g=>{const n=g.R.length,pr=g.R.map(r=>({r,a:JSON.parse(r.Answers||'{}'),p:JSON.parse(r.Photos||'{}')})),w=Math.floor(52/n);
+ const sec=g=>{const n=g.R.length,pr=g.R.map(r=>({r,a:JSON.parse(r.Answers||'{}'),p:JSON.parse(r.Photos||'{}')})),w=Math.floor(60/n);
   const cell=(q,x)=>q.Type==='Photo'?(x.p[q.QID]?`<img src="https://drive.google.com/thumbnail?id=${(x.p[q.QID].match(/[-\w]{25,}/)||[''])[0]}&sz=w500" width=${n>1?120:180}><br><a href="${x.p[q.QID]}">Open photo</a>`:'-'):esc(x.a[q.QID]||'-');
   return`<div style="margin-top:14px"><div style="font-size:13pt;font-weight:bold;border-bottom:1px solid #000;margin-bottom:5px;page-break-after:avoid">Hall ${esc(g.HallNo)} (${esc(g.Type)}) &ndash; ${esc(g.Date)}</div>
   <table border=1 cellpadding=4 style="border-collapse:collapse;width:100%;margin-bottom:8px;page-break-inside:avoid"><tr><th style="width:50%">Handled By</th><th>Handling Dept</th></tr>
   ${[...new Map(g.R.map(r=>[r.HandlerName+'|'+r.HandlerDept,r])).values()].map(r=>`<tr><td>${esc(r.HandlerName)}</td><td>${esc(r.HandlerDept)}</td></tr>`).join('')}</table>
-  <table border=1 cellpadding=4 style="border-collapse:collapse;width:100%"><thead><tr><th style="width:6%">S.No</th><th style="width:${n>1?14:18}%">Category</th><th>Question</th>${pr.map(x=>`<th style="width:${n>1?w:25}%">Response<br><span style="font-weight:normal;font-size:9.5pt">${esc(x.r.AuditorName)}${x.r.Avg?' &ndash; Avg '+esc(x.r.Avg)+'/5':''}</span></th>`).join('')}</tr></thead>
-  ${qs.map((q,i)=>`<tr style="page-break-inside:avoid${i===qs.length-1?';page-break-after:avoid':''}"><td style="text-align:center">${i+1}</td><td>${esc(q.Category)}</td><td>${esc(q.Text)}</td>${pr.map(x=>`<td>${cell(q,x)}</td>`).join('')}</tr>`).join('')}</table></div>`;};
+  <table border=1 cellpadding=4 style="border-collapse:collapse;width:100%"><thead><tr><th style="width:6%">S.No</th><th>Question</th>${pr.map(x=>`<th style="width:${n>1?w:30}%">Response<br><span style="font-weight:normal;font-size:9.5pt">${esc(x.r.AuditorName)}${x.r.Avg?' &ndash; Avg '+esc(x.r.Avg)+'/5':''}</span></th>`).join('')}</tr></thead>
+  ${qs.map((q,i)=>`<tr style="page-break-inside:avoid${i===qs.length-1?';page-break-after:avoid':''}"><td style="text-align:center">${i+1}</td><td>${esc(q.Text)}</td>${pr.map(x=>`<td>${cell(q,x)}</td>`).join('')}</tr>`).join('')}</table></div>`;};
  return`<div style="font-family:'Times New Roman',Times,serif">${COLLEGE}${title?`<p style="text-align:center;font-size:12pt;margin:0 0 6px"><b>${esc(title)}</b></p>`:''}
  <p style="font-size:12pt;font-weight:bold;margin:8px 0 4px;page-break-after:avoid">Audit Members</p>
  <table border=1 cellpadding=4 style="border-collapse:collapse;width:100%"><thead><tr><th style="width:8%">S.No</th><th>Name</th><th>Department</th></tr></thead>${members.map((m,i)=>`<tr><td style="text-align:center">${i+1}</td><td>${esc(nm(m))}</td><td>${esc(dp(m))}</td></tr>`).join('')}</table>
