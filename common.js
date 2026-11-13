@@ -52,8 +52,7 @@ async function crud(el,c){
  $('input[type=file]',el).onchange=async e=>{const t=await e.target.files[0].text();save(csvParse(t));e.target.value='';};
  draw();}
 // ---------- Report documents ----------
-const COLLEGE='<div style="text-align:center;border-bottom:3px double #000;padding-bottom:8px;margin-bottom:10px"><div style="font-size:18pt;font-weight:bold">KAMARAJ COLLEGE OF ENGINEERING AND TECHNOLOGY</div><div style="font-size:11pt;font-style:italic">(An Autonomous Institution)</div><div style="font-size:14pt;font-weight:bold;margin-top:8px;text-decoration:underline">Teaching Learning Process Audit Visit Report</div></div>';
-function auditDoc(reps,qs,members,title){
+const COLLEGE='<div style="text-align:center;border-bottom:3px double #000;padding-bottom:8px;margin-bottom:10px"><img src="'+new URL('Logo.jpg',location.href).href+'" style="width:10cm;height:2cm;display:block;margin:0 auto"><div style="font-size:14pt;font-weight:bold;margin-top:8px;text-decoration:underline">Teaching Learning Process Audit Visit Report</div></div>';
  const K='background:#f2f2f2;width:18%;font-weight:bold',nm=m=>m.FacultyName||m.name,dp=m=>m.Dept||m.dept||'';
  const rows=[];for(let i=0;i<members.length;i+=3)rows.push(members.slice(i,i+3));
  const sig=rows.map(r=>{const al=r.length===1?['center']:r.length===2?['left','right']:['left','center','right'];
