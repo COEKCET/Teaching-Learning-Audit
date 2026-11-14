@@ -1,7 +1,7 @@
 <!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Faculty</title><link rel=stylesheet href=style.css?v=3></head><body>
 <header class=top></header><main><div class=stats id=st></div>
 <div class=card><div class=tabs id=tb></div><div class=row><label style="flex:1;min-width:150px">Or pick a date<input type=date id=dt></label><button class="btn alt sm" id=cl>Clear</button></div></div>
-<div id=ls></div><div id=fm></div></main><script src=common.js?v=3></script><script>
+<div id=ls></div><div id=fm></div></main><script src=common.js?v=4></script><script>
 const u=boot('Faculty','🎓 My Audit Duties');let M,t0,base,DIR,CD,tab='today',prog=()=>{};const A={},P={};
 const TB=[['today','Today'],['up','Upcoming'],['past','Past'],['all','All']];
 const nowStr=()=>{const d=new Date(base+Date.now()-t0),p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;};
@@ -16,6 +16,8 @@ setInterval(async()=>{if(!M||chk)return;const n=nowStr();
  if(M.duties.some(x=>isLocked(x)&&n>=x.Date+' '+x.OpenTime)){chk=1;try{await pull();draw(!!$('#fm').innerHTML);}catch(e){}finally{chk=0;}}},10000);
 $('#dt').onchange=()=>draw();$('#cl').onclick=()=>{$('#dt').value='';draw();};
 const rep=d=>{const L=M.duties.filter(x=>x.Date===d&&!isLocked(x)),mem=[...new Set(L.flatMap(x=>x.members.split(', ')).filter(Boolean))].map(n=>({name:n,dept:(DIR.find(y=>y.FacultyName===n)||{}).Dept||''}));return auditDoc(M.reports.filter(r=>r.Date===d),M.questions,mem,'Audit date: '+d);};
+// Class hall -> only "Class" category questions, Lab hall -> only "Lab" category questions (falls back to all if no category matches)
+const qFor=du=>{const f=M.questions.filter(q=>String(q.Category).trim().toLowerCase()===String(du.Type).trim().toLowerCase());return f.length?f:M.questions;};
 function draw(keep){if(!keep)$('#fm').innerHTML='';const td=nowStr().slice(0,10),pd=$('#dt').value,done=x=>M.reports.find(r=>r.DutyID===x.DutyID);
  const f={today:x=>x.Date===td,up:x=>x.Date>td,past:x=>x.Date<td,all:()=>1}[tab];
  const L=M.duties.filter(x=>pd?x.Date===pd:f(x)).sort((a,b)=>(a.Date+a.VisitTime).localeCompare(b.Date+b.VisitTime));
@@ -35,7 +37,7 @@ function draw(keep){if(!keep)$('#fm').innerHTML='';const td=nowStr().slice(0,10)
  $$('[data-w],[data-p]',$('#ls')).forEach(b=>{b.onclick=()=>{const d=b.dataset.w||b.dataset.p;b.dataset.w?toWord('TLV_Report_'+d,rep(d)):toPDF(rep(d));};});}
 function form(du){CD=du;Object.keys(A).forEach(k=>delete A[k]);Object.keys(P).forEach(k=>delete P[k]);
  const old=M.reports.find(r=>r.DutyID===du.DutyID),ph=old?jp(old.Photos):{};if(old)Object.assign(A,jp(old.Answers));
- const depts=[...new Set(DIR.map(x=>x.Dept))].filter(Boolean),cats=[...new Set(M.questions.map(q=>q.Category))];
+ const QS=qFor(du),depts=[...new Set(DIR.map(x=>x.Dept))].filter(Boolean),cats=[...new Set(QS.map(q=>q.Category))];
  const inp=q=>{const a=A[q.QID]||'',T=q.Type;
   if(['YesNo','Rating','Choice','Multi'].includes(T)){const L=T==='YesNo'?['Yes','No']:T==='Rating'?[1,2,3,4,5]:jp(q.Options),sel=String(a).split('; ');
    return`<div class="row rate ${T==='Multi'?'mu':''} ${T==='YesNo'?'yn':''} ${T==='Rating'?'rt':''}" data-q="${esc(q.QID)}">${L.map(v=>`<button class="btn alt sm ${sel.includes(String(v))?'on':''} ${T==='YesNo'?(v==='Yes'?'y':'n'):''}">${esc(v)}</button>`).join('')}</div>${T==='Rating'?'<div class=scale><span>1 · Poor</span><span>5 · Excellent</span></div>':''}${T==='Multi'?'<small>Select all that apply</small>':''}`;}
@@ -44,18 +46,18 @@ function form(du){CD=du;Object.keys(A).forEach(k=>delete A[k]);Object.keys(P).fo
  $('#fm').innerHTML=`<div class="card fcard"><div class=fhead><div><div class=ftag>${du.Type==='Lab'?'LABORATORY AUDIT':'CLASSROOM AUDIT'}</div><h3>${du.Type==='Lab'?'🔬':'🏫'} Hall ${esc(du.HallNo)}</h3></div><button class="btn alt sm" id=cx>✕ Close</button></div>
  <div class=chips><span>📅 ${du.Date}</span><span>🏢 Block ${esc(du.Block||'-')}</span><span>🪜 Floor ${esc(du.Floor||'-')}</span><span>⏰ ${du.VisitTime}</span></div>
  <div class=hdl><div class=ht>Handling Details</div><div class=grid><div><label>Handling Dept <b class=req>*</b></label><select id=hd><option value="">-- Select --</option>${depts.map(d=>`<option>${esc(d)}</option>`).join('')}</select></div><div><label>Handling Faculty <b class=req>*</b></label><select id=hf></select></div></div></div>
- <div class=qs>${cats.map(c=>{const Q=M.questions.filter(q=>q.Category===c);return`<div class=sec><h4>${esc(c)}</h4><small>${Q.length} question${Q.length>1?'s':''}</small></div>`+Q.map(q=>`<div class="q qq"><div class=qt><span class=qn></span><span>${esc(q.Text)}</span></div><div class=qa>${inp(q)}</div></div>`).join('')}).join('')||'<p>No questions have been added yet.</p>'}</div></div>
+ <div class=qs>${cats.map(c=>{const Q=QS.filter(q=>q.Category===c);return`<div class=sec><h4>${esc(c)}</h4><small>${Q.length} question${Q.length>1?'s':''}</small></div>`+Q.map(q=>`<div class="q qq"><div class=qt><span class=qn></span><span>${esc(q.Text)}</span></div><div class=qa>${inp(q)}</div></div>`).join('')}).join('')||'<p>No questions have been added yet.</p>'}</div></div>
  <div class=sbar><div class=pgb><i id=pb></i></div><small id=pt></small><button class=btn id=sv>💾 Save Report</button></div>`;
  const fillF=(d,v)=>{$('#hf').innerHTML=DIR.filter(x=>x.Dept===d).map(x=>`<option>${esc(x.FacultyName)}</option>`).join('');if(v)$('#hf').value=v;};
  $('#hd').onchange=e=>fillF(e.target.value);if(old){$('#hd').value=old.HandlerDept;fillF(old.HandlerDept,old.HandlerName);}
- prog=()=>{const t=M.questions.length||1,a=M.questions.filter(q=>A[q.QID]||P[q.QID]||ph[q.QID]).length;$('#pb').style.width=a/t*100+'%';$('#pt').textContent=a+'/'+M.questions.length;};prog();
+ prog=()=>{const t=QS.length||1,a=QS.filter(q=>A[q.QID]||P[q.QID]||ph[q.QID]).length;$('#pb').style.width=a/t*100+'%';$('#pt').textContent=a+'/'+QS.length;};prog();
  $$('.rate',$('#fm')).forEach(r=>$$('button',r).forEach(b=>b.onclick=()=>{if(r.classList.contains('mu'))b.classList.toggle('on');else{$$('button',r).forEach(x=>x.classList.remove('on'));b.classList.add('on');}A[r.dataset.q]=$$('button.on',r).map(x=>x.textContent).join('; ');prog();}));
  $$('[data-c]',$('#fm')).forEach(t=>t.oninput=()=>{A[t.dataset.c]=t.value;prog();});
  $$('[data-cam]',$('#fm')).forEach(b=>b.onclick=()=>cam(b.dataset.cam));
  $$('[data-p]',$('#fm')).forEach(f=>f.onchange=()=>photo(f));
  $('#cx').onclick=()=>{$('#fm').innerHTML='';};
  $('#sv').onclick=async()=>{if(!$('#hd').value||!$('#hf').value)return toast('Select handling dept & faculty');
-  const miss=M.questions.filter(q=>!(A[q.QID]||P[q.QID]||ph[q.QID])).length;if(miss&&!confirm(miss+' question(s) unanswered. Save anyway?'))return;
+  const miss=QS.filter(q=>!(A[q.QID]||P[q.QID]||ph[q.QID])).length;if(miss&&!confirm(miss+' question(s) unanswered. Save anyway?'))return;
   await api('submitReport',{dutyId:du.DutyID,handlerDept:$('#hd').value,handlerName:$('#hf').value,answers:A,photos:Object.values(P).filter(x=>x&&x.data)});
   toast('✔ Report saved');await pull();draw();scrollTo({top:0,behavior:'smooth'});};
  $('#fm').scrollIntoView({behavior:'smooth'});}
