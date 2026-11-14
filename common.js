@@ -71,7 +71,7 @@ function auditDoc(reps,qs,members,title){
   <table border=1 cellpadding=4 style="border-collapse:collapse;width:100%"><thead><tr><th style="width:6%">S.No</th><th>Question</th>${pr.map(x=>`<th style="width:${n>1?w:30}%">Response<br><span style="font-weight:normal;font-size:9.5pt">${esc(x.r.AuditorName)}</span></th>`).join('')}</tr></thead>
   ${ql.map((q,i)=>`<tr style="page-break-inside:avoid${i===ql.length-1?';page-break-after:avoid':''}"><td style="text-align:center">${i+1}</td><td>${esc(q.Text)}</td>${pr.map(x=>`<td>${cell(q,x)}</td>`).join('')}</tr>`).join('')}</table></div>`;};
  // every Class / Lab starts on a new page with the full header, audit members and signatures
- const page=(g,i)=>{const ms=members.filter(m=>g.R.some(r=>r.AuditorID===m.FacultyID)),mm=ms.length?ms:members;
+ const page=(g,i)=>{const ms=members.filter(m=>g.R.some(r=>(m.FacultyID&&r.AuditorID===m.FacultyID)||r.AuditorName===nm(m))),mm=ms.length?ms:members;
   return`<div style="font-family:'Times New Roman',Times,serif${i?';page-break-before:always':''}">${COLLEGE}${title?`<p style="text-align:center;font-size:12pt;margin:0 0 6px"><b>${esc(title)}</b></p>`:''}
  <p style="font-size:12pt;font-weight:bold;margin:8px 0 4px;page-break-after:avoid">Audit Members</p>
  <table border=1 cellpadding=4 style="border-collapse:collapse;width:100%"><thead><tr><th style="width:8%">S.No</th><th>Name</th><th>Department</th></tr></thead>${mm.map((m,j)=>`<tr><td style="text-align:center">${j+1}</td><td>${esc(nm(m))}</td><td>${esc(dp(m))}</td></tr>`).join('')}</table>
