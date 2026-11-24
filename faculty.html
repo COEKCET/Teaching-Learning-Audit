@@ -1,7 +1,7 @@
 <!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Faculty</title><link rel=stylesheet href=style.css?v=3></head><body>
 <header class=top></header><main><div class=stats id=st></div>
 <div class=card><div class=tabs id=tb></div><div class=row><label style="flex:1;min-width:150px">Or pick a date<input type=date id=dt></label><button class="btn alt sm" id=cl>Clear</button></div></div>
-<div id=ls></div><div id=fm></div></main><script src=common.js?v=4></script><script>
+<div id=ls></div><div id=fm></div></main><script src=common.js?v=5></script><script>
 const u=boot('Faculty','🎓 My Audit Duties');let M,t0,base,DIR,CD,tab='today',prog=()=>{};const A={},P={};
 const TB=[['today','Today'],['up','Upcoming'],['past','Past'],['all','All']];
 const nowStr=()=>{const d=new Date(base+Date.now()-t0),p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;};
@@ -18,17 +18,18 @@ $('#dt').onchange=()=>draw();$('#cl').onclick=()=>{$('#dt').value='';draw();};
 const rep=d=>{const L=M.duties.filter(x=>x.Date===d&&!isLocked(x)),mem=[...new Set(L.flatMap(x=>x.members.split(', ')).filter(Boolean))].map(n=>({name:n,dept:(DIR.find(y=>y.FacultyName===n)||{}).Dept||''}));return auditDoc(M.reports.filter(r=>r.Date===d),M.questions,mem,'Audit date: '+d);};
 // Class hall -> only "Class" category questions, Lab hall -> only "Lab" category questions (falls back to all if no category matches)
 const qFor=du=>{const f=M.questions.filter(q=>String(q.Category).trim().toLowerCase()===String(du.Type).trim().toLowerCase());return f.length?f:M.questions;};
+const hk=x=>String(x.Hour||0).padStart(2,'0'); // sort key for Hour
 function draw(keep){if(!keep)$('#fm').innerHTML='';const td=nowStr().slice(0,10),pd=$('#dt').value,done=x=>M.reports.find(r=>r.DutyID===x.DutyID);
  const f={today:x=>x.Date===td,up:x=>x.Date>td,past:x=>x.Date<td,all:()=>1}[tab];
- const L=M.duties.filter(x=>pd?x.Date===pd:f(x)).sort((a,b)=>(a.Date+a.VisitTime).localeCompare(b.Date+b.VisitTime));
+ const L=M.duties.filter(x=>pd?x.Date===pd:f(x)).sort((a,b)=>(a.Date+hk(a)+a.VisitTime).localeCompare(b.Date+hk(b)+b.VisitTime));
  const n=k=>M.duties.filter(k).length,dn=n(done);
  $('#st').innerHTML=[['📋',M.duties.length,'Total duties'],['📅',n(x=>x.Date===td),'Today'],['⏭️',n(x=>x.Date>td),'Upcoming'],['✅',dn,'Completed'],['⏳',M.duties.length-dn,'Pending']].map(s=>`<div class=stat><span>${s[0]}</span><b>${s[1]}</b>${s[2]}</div>`).join('');
  $('#tb').innerHTML=TB.map(t=>`<button class="btn alt ${!pd&&tab===t[0]?'on':''}" data-t=${t[0]}>${t[1]}</button>`).join('');
  const card=x=>{const op=!isLocked(x),d=done(x);
   if(!op)return`<div class=q><div class=dc><div class=hn>🔒<b>Details locked</b></div><span class="badge b-lk">🔒 ${x.OpenTime}</span></div>
-  <small>⏰ Visit ${x.VisitTime} • Opens ${x.OpenTime}</small></div>`;
+  <small>🕒 Hour ${esc(x.Hour||'-')} • ⏰ Visit ${x.VisitTime} • Opens ${x.OpenTime}</small></div>`;
   return`<div class=q><div class=dc><div class=hn>${x.Type==='Lab'?'🔬':'🏫'}<b>Hall ${esc(x.HallNo)}</b></div><span class="badge ${d?'b-ok':'b-wr'}">${d?'Completed':'Open'}</span></div>
-  <small>${esc(x.Type)} • Block ${esc(x.Block||'-')}, Floor ${esc(x.Floor||'-')}<br>⏰ Visit ${x.VisitTime} • Opens ${x.OpenTime}<br>👥 ${esc(x.members)}</small><br><button class="btn sm" style="margin-top:8px" data-id=${x.DutyID}>${d?'✎ Edit report':'▶ Start audit'}</button></div>`};
+  <small>🕒 Hour ${esc(x.Hour||'-')} • ${esc(x.Type)} • Block ${esc(x.Block||'-')}, Floor ${esc(x.Floor||'-')}<br>⏰ Visit ${x.VisitTime} • Opens ${x.OpenTime}<br>👥 ${esc(x.members)}</small><br><button class="btn sm" style="margin-top:8px" data-id=${x.DutyID}>${d?'✎ Edit report':'▶ Start audit'}</button></div>`};
  const G={};L.forEach(x=>(G[x.Date]=G[x.Date]||[]).push(x));
  $('#ls').innerHTML=Object.keys(G).map(d=>{const g=G[d];return`<div class=card><div class=dh><h3>📅 ${d} ${d===td?'<span class="badge b-wr">Today</span>':''}</h3><small>${g.filter(done).length}/${g.length} done</small>${g.every(done)?`<span class=row><button class="btn sm" data-w=${d}>📄 Word</button><button class="btn sm" data-p=${d}>📕 PDF</button></span>`:''}</div>${g.map(card).join('')}</div>`}).join('')
   ||`<div class="card empty">🗓️<br>No duties here<br><small>${M.duties.length?'Try another tab or date.':'No duty has been assigned to you yet. Please contact the admin.'}</small></div>`;
@@ -44,7 +45,7 @@ function form(du){CD=du;Object.keys(A).forEach(k=>delete A[k]);Object.keys(P).fo
   if(T==='Comment')return`<textarea data-c="${esc(q.QID)}" rows=3 placeholder="Type your remarks here...">${esc(a)}</textarea>`;
   return`<button type=button class="btn ph" data-cam="${esc(q.QID)}">📸 Capture GeoTag Photo</button><input type=file accept="image/*" capture=environment data-p="${esc(q.QID)}" id="fi${esc(q.QID)}" hidden><br><small id="g${esc(q.QID)}" class=gs>${ph[q.QID]?'✔ Photo already saved (retake to replace)':''}</small><img id="i${esc(q.QID)}" class=pv hidden>`;};
  $('#fm').innerHTML=`<div class="card fcard"><div class=fhead><div><div class=ftag>${du.Type==='Lab'?'LABORATORY AUDIT':'CLASSROOM AUDIT'}</div><h3>${du.Type==='Lab'?'🔬':'🏫'} Hall ${esc(du.HallNo)}</h3></div><button class="btn alt sm" id=cx>✕ Close</button></div>
- <div class=chips><span>📅 ${du.Date}</span><span>🏢 Block ${esc(du.Block||'-')}</span><span>🪜 Floor ${esc(du.Floor||'-')}</span><span>⏰ ${du.VisitTime}</span></div>
+ <div class=chips><span>📅 ${du.Date}</span><span>🕒 Hour ${esc(du.Hour||'-')}</span><span>🏢 Block ${esc(du.Block||'-')}</span><span>🪜 Floor ${esc(du.Floor||'-')}</span><span>⏰ ${du.VisitTime}</span></div>
  <div class=hdl><div class=ht>Handling Details</div><div class=grid><div><label>Handling Dept <b class=req>*</b></label><select id=hd><option value="">-- Select --</option>${depts.map(d=>`<option>${esc(d)}</option>`).join('')}</select></div><div><label>Handling Faculty <b class=req>*</b></label><select id=hf></select></div></div></div>
  <div class=qs>${cats.map(c=>{const Q=QS.filter(q=>q.Category===c);return`<div class=sec><h4>${esc(c)}</h4><small>${Q.length} question${Q.length>1?'s':''}</small></div>`+Q.map(q=>`<div class="q qq"><div class=qt><span class=qn></span><span>${esc(q.Text)}</span></div><div class=qa>${inp(q)}</div></div>`).join('')}).join('')||'<p>No questions have been added yet.</p>'}</div></div>
  <div class=sbar><div class=pgb><i id=pb></i></div><small id=pt></small><button class=btn id=sv>💾 Save Report</button></div>`;
@@ -106,7 +107,7 @@ async function finish(q,src,w,h,when,gp){const g=byId('g'+q);g.textContent='📍
 function render(q,src,sw,sh,lat,lng,g,pn,when){const k=Math.min(1,1000/sw),c=document.createElement('canvas');c.width=sw*k;c.height=sh*k;const x=c.getContext('2d');x.drawImage(src,0,0,c.width,c.height);
  const fs=Math.max(14,Math.round(c.width/48)),lh=fs*1.35,pad=8;x.font=`bold ${fs}px "Times New Roman", Times, serif`;x.textBaseline='alphabetic';
  const wrap=(t,m)=>{const o=[];let l='';t.split(' ').forEach(w=>{const n=l?l+' '+w:w;if(x.measureText(n).width>m&&l){o.push(l);l=w;}else l=n;});if(l)o.push(l);return o;};
- const det=CD?`Details: ${CD.Type||'Hall'} - Hall ${CD.HallNo}, Block ${CD.Block||'-'}, Floor ${CD.Floor||'-'}`:'';
+ const det=CD?`Details: ${CD.Type||'Hall'} - Hall ${CD.HallNo}, Hour ${CD.Hour||'-'}, Block ${CD.Block||'-'}, Floor ${CD.Floor||'-'}`:'';
  const L=[...(pn?wrap('Place: '+pn,c.width-2*pad).slice(0,3):[]),`Location: Lat ${lat}, Long ${lng}`,...(det?wrap(det,c.width-2*pad):[]),`Date & Time: ${when}`],h=lh*L.length+pad,top=c.height-h;
  x.fillStyle='#000000b3';x.fillRect(0,top,c.width,h);x.fillStyle='#fff';L.forEach((t,i)=>x.fillText(t,pad,top+pad/2+lh*i+fs));
  const d=c.toDataURL('image/jpeg',.7);P[q]={qid:q,lat,lng,place:pn,data:d};g.textContent='✔ Geotagged: '+(pn||lat+', '+lng);const v=byId('i'+q);v.src=d;v.hidden=false;prog();}
