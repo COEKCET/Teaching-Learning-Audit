@@ -1,4 +1,4 @@
-const GS_URL="https://script.google.com/macros/s/AKfycbwQlRV3lGWytETp4m9fvuHdqYnHxWOC8_Dkcm_IPOlMii3FDzKZhVnyOfMgTo02_kis/exec";
+const GS_URL="https://script.google.com/macros/s/AKfycbxHcqMsxWzaRWKHQYDQCNjOF_GyGRT6Z4v-VW3_L14JUTLQf4Nif3wUCP5BYOJEvAFh/exec";
 const $$=(s,e=document)=>[...e.querySelectorAll(s)],jp=s=>{try{return JSON.parse(s)||[]}catch{return[]}};
 const $=(s,e=document)=>e.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 document.documentElement.dataset.theme=localStorage.th||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
@@ -42,7 +42,11 @@ async function crud(el,c){
   L.querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>{const r=cur.find(x=>x[KEY]===b.dataset.ed);c.fields.forEach(f=>{const e=$(`[name=${f.k}]`,el);if(f.type==='multi'){const t=[...e.options].find(o=>o.value===r[f.k]);S[f.k]=r[f.k]?[[r[f.k],t?t.text:r[f.k]]]:[];pl(f.k);}else e.value=r[f.k]||'';});el.dataset.id=r[KEY];$('#ad',el).textContent='✔ Update';scrollTo(0,0);});};
  const draw=async()=>{cur=await ld(c.sheet);show();};
  $('#sr',el).oninput=show;
- const save=async rows=>{const r=await api('add',{sheet:c.sheet,rows});toast(r.skipped?'Saved – '+r.skipped+' skipped (unknown Faculty ID)':'Saved ✔');delete el.dataset.id;$('#ad',el).textContent='＋ Add';clr();draw();};
+ // Duties: if same Date + Hall + Hour (Mon-Sat) is already assigned, the server returns the clashes; ask before adding
+ const save=async(rows,force)=>{const r=await api('add',{sheet:c.sheet,rows,force:!!force});
+  if(r.duplicate){const L=r.conflicts.map(x=>'• '+x.Day+' '+x.Date+', Hall '+x.HallNo+', Hour '+x.Hour+' (already: '+x.ExistingFaculty+')').join('\n');
+   if(confirm('Already assigned for the same day, hall and hour:\n\n'+L+'\n\nDo you still want to add?'))return save(rows,true);return;}
+  toast(r.skipped?'Saved – '+r.skipped+' skipped (unknown Faculty ID)':'Saved ✔');delete el.dataset.id;$('#ad',el).textContent='＋ Add';clr();draw();};
  $('#ad',el).onclick=()=>{const o={},ms=[];c.fields.forEach(f=>{const e=$(`[name=${f.k}]`,el);if(f.type==='multi')ms.push([f.k,S[f.k].map(x=>x[0])]);else o[f.k]=e.value;});
   if(el.dataset.id&&!(KEY in o))o[KEY]=el.dataset.id;
   let rows=[o];ms.forEach(([k,vs])=>{rows=rows.flatMap(r=>vs.map(v=>({...r,[k]:v})));});
@@ -59,13 +63,13 @@ function auditDoc(reps,qs,members,title){
  const sigOf=ms=>{const rows=[];for(let i=0;i<ms.length;i+=3)rows.push(ms.slice(i,i+3));
   return rows.map(r=>{const al=r.length===1?['center']:r.length===2?['left','right']:['left','center','right'];
    return`<tr style="page-break-inside:avoid">${r.map((m,i)=>`<td style="width:${Math.floor(100/r.length)}%;text-align:${al[i]};border:0;padding:14px 12px 0">__________________<br><b>${esc(nm(m))}</b><br>Audit Member</td>`).join('')}</tr>`;}).join('');};
- // one page per Date + Hall; every auditor of that hall gets his/her own response column
- const G=[],gm={};reps.forEach(r=>{const k=r.Date+'|'+r.HallNo;if(!gm[k]){gm[k]={Date:r.Date,HallNo:r.HallNo,Type:r.Type,R:[]};G.push(gm[k]);}gm[k].R.push(r);});
+ // one page per Date + Hall + Hour; every auditor of that hall/hour gets his/her own response column
+ const G=[],gm={};reps.forEach(r=>{const k=r.Date+'|'+r.HallNo+'|'+(r.Hour||'');if(!gm[k]){gm[k]={Date:r.Date,HallNo:r.HallNo,Hour:r.Hour,Type:r.Type,R:[]};G.push(gm[k]);}gm[k].R.push(r);});
  const sec=g=>{const n=g.R.length,pr=g.R.map(r=>({r,a:JSON.parse(r.Answers||'{}'),p:JSON.parse(r.Photos||'{}')})),w=Math.floor(60/n);
   // Class hall -> only "Class" category questions, Lab -> only "Lab" category questions
   const qf=qs.filter(q=>low(q.Category)===low(g.Type)),ql=qf.length?qf:qs;
   const cell=(q,x)=>q.Type==='Photo'?(x.p[q.QID]?`<img src="https://drive.google.com/thumbnail?id=${(x.p[q.QID].match(/[-\w]{25,}/)||[''])[0]}&sz=w500" width=${n>1?120:180}><br><a href="${x.p[q.QID]}">Open photo</a>`:'-'):esc(x.a[q.QID]||'-');
-  return`<div style="margin-top:14px"><div style="font-size:13pt;font-weight:bold;border-bottom:1px solid #000;margin-bottom:5px;page-break-after:avoid">Hall ${esc(g.HallNo)} (${esc(g.Type)}) &ndash; ${esc(g.Date)}</div>
+  return`<div style="margin-top:14px"><div style="font-size:13pt;font-weight:bold;border-bottom:1px solid #000;margin-bottom:5px;page-break-after:avoid">Hall ${esc(g.HallNo)} (${esc(g.Type)}) &ndash; Hour ${esc(g.Hour||'-')} &ndash; ${esc(g.Date)}</div>
   <table border=1 cellpadding=4 style="border-collapse:collapse;width:100%;margin-bottom:8px;page-break-inside:avoid"><tr><th style="width:50%">Handled By</th><th>Handling Dept</th></tr>
   ${[...new Map(g.R.map(r=>[r.HandlerName+'|'+r.HandlerDept,r])).values()].map(r=>`<tr><td>${esc(r.HandlerName)}</td><td>${esc(r.HandlerDept)}</td></tr>`).join('')}</table>
   <table border=1 cellpadding=4 style="border-collapse:collapse;width:100%"><thead><tr><th style="width:6%">S.No</th><th>Question</th>${pr.map(x=>`<th style="width:${n>1?w:30}%">Response<br><span style="font-weight:normal;font-size:9.5pt">${esc(x.r.AuditorName)}</span></th>`).join('')}</tr></thead>
@@ -100,7 +104,7 @@ async function analytics(el){
   const du=Du.filter(d=>ok(d.Date)&&(!ff||d.FacultyID===ff)),rp=R.filter(r=>ok(r.Date)&&(!ff||r.AuditorID===ff));let h='';
   if(t==='duty'){const g={};du.forEach(d=>{const k=d.FacultyName+'|'+d.Date;(g[k]??={Faculty:d.FacultyName,Dept:d.Dept,Date:d.Date,H:[],T:[]}).H.push(d.HallNo);g[k].T.push(d.VisitTime);});
    h=COLLEGE+'<h4>Faculty Duty List '+esc(f1)+' to '+esc(f2)+'</h4>'+tbl(['Faculty','Dept','Date','Halls','No. of Halls','Start Time'],Object.values(g).sort((a,b)=>a.Faculty.localeCompare(b.Faculty)||a.Date.localeCompare(b.Date)).map(x=>({...x,Halls:x.H.join(', '),'No. of Halls':x.H.length,'Start Time':x.T.sort()[0]})));}
-  else if(t==='dh')h=COLLEGE+'<h4>Date &amp; Hall wise Report</h4>'+tbl(['Date','HallNo','Type','AuditorName','HandlerName','HandlerDept','Avg'],[...rp].sort((a,b)=>a.Date.localeCompare(b.Date)||a.HallNo.localeCompare(b.HallNo)));
+  else if(t==='dh')h=COLLEGE+'<h4>Date &amp; Hall wise Report</h4>'+tbl(['Date','Hour','HallNo','Type','AuditorName','HandlerName','HandlerDept','Avg'],[...rp].sort((a,b)=>a.Date.localeCompare(b.Date)||String(a.Hour||'').localeCompare(String(b.Hour||''))||a.HallNo.localeCompare(b.HallNo)));
   else if(t==='low')h=COLLEGE+'<h4>Low Rating Report (avg &lt; 3)</h4>'+tbl(['Date','HallNo','Type','AuditorName','HandlerName','HandlerDept','Avg'],rp.filter(r=>r.Avg&&avg(r)<3));
   else if(t==='pend'){const dn=new Set(R.map(r=>r.DutyID));h=COLLEGE+'<h4>Pending Duties</h4>'+tbl(['Date','HallNo','Type','FacultyName','Dept','VisitTime'],du.filter(d=>!dn.has(d.DutyID)));}
   else if(t==='hf'){const g={};rp.forEach(r=>{if(r.Avg)(g[r.HandlerName]=g[r.HandlerName]||{Faculty:r.HandlerName,Dept:r.HandlerDept,v:[]}).v.push(avg(r));});h=COLLEGE+'<h4>Handling Faculty-wise Score</h4>'+tbl(['Faculty','Dept','Reports','Avg'],Object.values(g).map(x=>({...x,Reports:x.v.length,Avg:(x.v.reduce((a,b)=>a+b,0)/x.v.length).toFixed(2)})).sort((a,b)=>a.Avg-b.Avg));}
